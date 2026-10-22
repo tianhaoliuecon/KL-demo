@@ -1,0 +1,661 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Crowd vs. Expert</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a seminar instrument panel. Controls and verdicts in a left rail; four linked plots on the right;
+   below, the distribution of the evidence at the moment of decision, fixed sample size vs. sequential sampling at the same expected budget.
+   Colors match the slides: teal = expert pool (F), orange = crowd (G). */
+:root {
+  --bg: #F8F8F6;
+  --panel: #FFFFFF;
+  --fg: #263043;
+  --muted: #687184;
+  --rule: #E1E4E9;
+  --grid: #EDEFF2;
+  --F: #00869C;
+  --G: #C9621A;
+  --flip: #6B4FA0;
+  --bad: #BE1E1E;
+  --ink: #3C465A;
+  --F-soft: rgba(0, 134, 156, 0.15);
+  --G-soft: rgba(201, 98, 26, 0.15);
+  --flip-soft: rgba(107, 79, 160, 0.18);
+  --serif: "Crimson Pro", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12161D; --panel: #181D26; --fg: #E3E7EE; --muted: #9AA3B3; --rule: #2B3240; --grid: #232A36;
+    --F: #3BB7CC; --G: #E88A4B; --flip: #A88BE0; --bad: #F07070; --ink: #C9D2E3;
+    --F-soft: rgba(59, 183, 204, 0.18); --G-soft: rgba(232, 138, 75, 0.18); --flip-soft: rgba(168, 139, 224, 0.22);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12161D; --panel: #181D26; --fg: #E3E7EE; --muted: #9AA3B3; --rule: #2B3240; --grid: #232A36;
+  --F: #3BB7CC; --G: #E88A4B; --flip: #A88BE0; --bad: #F07070; --ink: #C9D2E3;
+  --F-soft: rgba(59, 183, 204, 0.18); --G-soft: rgba(232, 138, 75, 0.18); --flip-soft: rgba(168, 139, 224, 0.22);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--serif); font-size: 17px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 18px 32px;
+}
+.wrap { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 24px; border-bottom: 1px solid var(--rule); padding-bottom: 10px; }
+h1 { font-size: 30px; font-weight: 600; margin: 0; color: var(--ink); letter-spacing: 0.005em; text-wrap: balance; }
+h1 .F { color: var(--F); } h1 .G { color: var(--G); }
+.lede { margin: 0; color: var(--muted); max-width: 64ch; }
+.grid { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.rail { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 12px 14px; min-width: 0; }
+.card h2 { font-size: 13px; font-family: var(--mono); font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 8px; }
+.ctrl { display: flex; flex-direction: column; gap: 2px; padding-block: 6px; }
+.ctrl + .ctrl { border-top: 1px dashed var(--rule); }
+.ctrl label { display: flex; justify-content: space-between; gap: 8px; font-size: 16px; }
+.ctrl label .v { font-family: var(--mono); font-size: 14px; font-variant-numeric: tabular-nums; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+input[type=range] { width: 100%; accent-color: var(--ink); }
+input[type=range].F { accent-color: var(--F); } input[type=range].G { accent-color: var(--G); }
+button { font-family: var(--mono); font-size: 13px; letter-spacing: 0.03em; border: 1px solid var(--ink); background: transparent; color: var(--ink); border-radius: 4px; padding: 6px 10px; cursor: pointer; }
+button:hover { background: var(--grid); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--F); outline-offset: 2px; }
+.btnrow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.verdict { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: baseline; padding-block: 7px; }
+.verdict + .verdict { border-top: 1px dashed var(--rule); }
+.verdict .what { font-size: 15.5px; }
+.verdict .who { font-size: 13px; color: var(--muted); grid-column: 1 / 2; }
+.chip { grid-row: 1 / span 2; grid-column: 2; font-family: var(--mono); font-size: 12.5px; font-weight: 500; padding: 3px 8px; border-radius: 999px; white-space: nowrap; border: 1px solid currentColor; }
+.chip.F { color: var(--F); background: var(--F-soft); }
+.chip.G { color: var(--G); background: var(--G-soft); }
+.chip.N { color: var(--muted); background: transparent; }
+.flipbanner { font-weight: 600; color: var(--bad); font-size: 17px; margin-top: 4px; min-height: 1.4em; }
+table.read { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; }
+table.read th { text-align: left; font-weight: 400; color: var(--muted); padding: 3px 4px; }
+table.read td { padding: 3px 4px; text-align: right; }
+table.read td.F { color: var(--F); } table.read td.G { color: var(--G); }
+table.read tr + tr td, table.read tr + tr th { border-top: 1px solid var(--grid); }
+.plots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; min-width: 0; }
+@media (max-width: 640px) { .plots { grid-template-columns: minmax(0, 1fr); } }
+.plot { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.plot figcaption { font-size: 15px; color: var(--muted); }
+.plot figcaption b { color: var(--fg); font-weight: 600; }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { font-family: var(--mono); font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+svg .lab { font-family: var(--serif); font-size: 14px; }
+svg .labF { fill: var(--F); } svg .labG { fill: var(--G); } svg .labFlip { fill: var(--flip); } svg .labInk { fill: var(--fg); }
+.axis { stroke: var(--muted); stroke-width: 1; fill: none; }
+.gridl { stroke: var(--grid); stroke-width: 1; fill: none; }
+.lineF { stroke: var(--F); stroke-width: 2.2; fill: none; }
+.lineG { stroke: var(--G); stroke-width: 2.2; fill: none; stroke-dasharray: 6 3; }
+.dotF { fill: var(--F); } .dotG { fill: var(--G); }
+.regF { fill: var(--F-soft); } .regG { fill: var(--G-soft); } .regFlip { fill: var(--flip-soft); }
+.bnd { stroke: var(--ink); stroke-width: 1.4; fill: none; }
+.bnd.dash { stroke-dasharray: 5 3; }
+.ref { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; fill: none; }
+.star { fill: var(--bad); stroke: var(--panel); stroke-width: 1.5; cursor: grab; }
+#map { cursor: crosshair; touch-action: none; }
+.anim { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 640px) { .anim { grid-template-columns: minmax(0, 1fr); } }
+.wrong { fill: var(--bad); opacity: 0.07; }
+.note { font-size: 14.5px; color: var(--muted); max-width: 110ch; }
+.head2 { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.head2 h2 { margin: 0; }
+.head2 .sub { font-size: 14px; color: var(--muted); }
+.barF { fill: var(--F); opacity: 0.75; } .barG { fill: var(--G); opacity: 0.75; } .barBad { fill: var(--bad); opacity: 0.85; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1><span class="G">Crowd</span> vs. <span class="F">Expert</span></h1>
+    <p class="lede">Drag the star or move the sliders.</p>
+  </header>
+
+  <div class="grid">
+    <div class="rail">
+      <div class="card">
+        <h2>The two pools</h2>
+        <div class="ctrl">
+          <label for="q"><span><span class="swatch" style="background:var(--G)"></span>Crowd: accuracy</span><span class="v" id="qv"></span></label>
+          <input type="range" id="q" class="G" min="0.55" max="0.95" step="0.005" value="0.75">
+        </div>
+        <div class="ctrl">
+          <label for="ea"><span><span class="swatch" style="background:var(--F)"></span>Expert: accuracy</span><span class="v" id="eav"></span></label>
+          <input type="range" id="ea" class="F" min="0.35" max="5" step="0.01" value="3">
+        </div>
+        <div class="ctrl">
+          <label for="ew"><span><span class="swatch" style="background:var(--F)"></span>Expert: share of labels</span><span class="v" id="ewv"></span></label>
+          <input type="range" id="ew" class="F" min="-2" max="0" step="0.01" value="-1">
+        </div>
+        <div class="ctrl">
+          <label for="nn"><span>Sample size: fixed, or on average</span><span class="v" id="nnv"></span></label>
+          <input type="range" id="nn" min="2" max="60" step="1" value="20">
+        </div>
+        <div class="btnrow"><button id="reset" type="button">Warm-up pools</button><button id="rich" type="button">Frequent expert</button></div>
+      </div>
+
+      <div class="card" aria-live="polite">
+        <h2>Which pool wins</h2>
+        <div class="verdict"><span class="what">Fixed sample size, one problem</span><span class="chip" id="vMS"></span><span class="who">Chernoff information · Moscarini–Smith</span></div>
+        <div class="verdict"><span class="what">Fixed sample size, every problem</span><span class="chip" id="vMPST"></span><span class="who">Rényi divergences · Mu–Pomatto–Strack–Tamuz</span></div>
+        <div class="verdict"><span class="what">Sequential sampling</span><span class="chip" id="vKL"></span><span class="who">KL divergences · this paper</span></div>
+        <div class="flipbanner" id="flip"></div>
+      </div>
+
+      <div class="card">
+        <h2>Probability of error</h2>
+        <table class="read">
+          <tr><th></th><th style="text-align:right">crowd</th><th style="text-align:right">expert</th></tr>
+          <tr><th id="rfixlab">fixed sample size</th><td class="G" id="rfG"></td><td class="F" id="rfF"></td></tr>
+          <tr><th id="rseqlab">sequential sampling</th><td class="G" id="rsG"></td><td class="F" id="rsF"></td></tr>
+          <tr><th>KL</th><td class="G" id="kG"></td><td class="F" id="kF"></td></tr>
+          <tr><th>Chernoff</th><td class="G" id="cG"></td><td class="F" id="cF"></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="plots">
+      <figure class="plot">
+        <svg id="psi" viewBox="0 0 460 300" role="img" aria-label="The curves psi of s for both pools"></svg>
+        <figcaption><b>Three rankings, one curve.</b> End slopes: KL. Depth: Chernoff.</figcaption>
+      </figure>
+      <figure class="plot">
+        <svg id="map" viewBox="0 0 460 300" role="img" aria-label="Map of expert pools by accuracy and share of labels, with the regions where each pool wins"></svg>
+        <figcaption><b>Where the ranking flips.</b> Solid: fixed sample size. Dashed: sequential sampling.</figcaption>
+      </figure>
+      <figure class="plot">
+        <svg id="fixed" viewBox="0 0 460 300" role="img" aria-label="Error against the sample size"></svg>
+        <figcaption><b>Fixed sample size.</b> Error after n labels. Crowd at odd n: an even sample can tie, and a coin flip then gives the error of one label fewer.</figcaption>
+      </figure>
+      <figure class="plot">
+        <svg id="seq" viewBox="0 0 460 300" role="img" aria-label="Error against expected number of labels under sequential sampling"></svg>
+        <figcaption><b>Sequential sampling.</b> Error against expected labels. Dots: stopping thresholds; the lines join them, and their steepness is the KL divergence.</figcaption>
+      </figure>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="head2"><h2>Evidence at the decision</h2><span class="sub">same expected number of labels</span></div>
+    <div class="anim">
+      <figure class="plot">
+        <svg id="pd" viewBox="0 0 560 280" role="img" aria-label="Distribution of the evidence for the truth after a fixed number of labels, for both pools"></svg>
+      </figure>
+      <figure class="plot">
+        <svg id="ps" viewBox="0 0 560 280" role="img" aria-label="Distribution of the evidence for the truth when sampling stops, with the same expected number of labels, for both pools"></svg>
+      </figure>
+    </div>
+  </div>
+
+  <p class="note">Two states, prior ½, 0–1 loss. Sequential sampling stops by sequential probability ratio tests. Li and Liu, “Ranking Experiments under Sequential Sampling.”</p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var NS = "http://www.w3.org/2000/svg";
+  var st = { q: 0.75, a: 0.999, w: 0.1, n: 20 };
+
+  // ---------- model ----------
+  var LOGF = [0];
+  for (var i = 1; i <= 400; i++) LOGF[i] = LOGF[i - 1] + Math.log(i);
+  function lchoose(n, k) { return LOGF[n] - LOGF[k] - LOGF[n - k]; }
+  function binom(n, p) {
+    var out = new Array(n + 1), lp = Math.log(p), lq = Math.log(1 - p);
+    for (var k = 0; k <= n; k++) {
+      var v = lchoose(n, k);
+      if (k > 0) v += k * lp;
+      if (n - k > 0) v += (n - k) * lq;
+      out[k] = Math.exp(v);
+    }
+    return out;
+  }
+  function majErr(e, p) {
+    if (e === 0) return 0.5;
+    var b = binom(e, p), s = 0;
+    for (var k = 0; k <= e; k++) { if (2 * k < e) s += b[k]; else if (2 * k === e) s += 0.5 * b[k]; }
+    return s;
+  }
+  function errFixedG(n) { return majErr(n, st.q); }
+  function errFixedF(n) {
+    var be = binom(n, st.w), s = 0;
+    for (var e = 0; e <= n; e++) if (be[e] > 0) s += be[e] * majErr(e, st.a);
+    return s;
+  }
+  function klb(a) { return (2 * a - 1) * Math.log(a / (1 - a)); }
+  function bh(a) { return 2 * Math.sqrt(a * (1 - a)); }
+  function stats() {
+    return { IG: klb(st.q), IF: st.w * klb(st.a), CG: -Math.log(bh(st.q)), CF: -Math.log(1 - st.w + st.w * bh(st.a)) };
+  }
+  function lse(arr) {
+    var m = -Infinity, s = 0, k;
+    for (k = 0; k < arr.length; k++) if (arr[k] > m) m = arr[k];
+    if (m === -Infinity) return m;
+    for (k = 0; k < arr.length; k++) s += Math.exp(arr[k] - m);
+    return m + Math.log(s);
+  }
+  function psiG(s) { var L1 = Math.log(st.q), L0 = Math.log(1 - st.q); return lse([(1 - s) * L0 + s * L1, (1 - s) * L1 + s * L0]); }
+  function psiF(s) {
+    var A1 = Math.log(st.a), A0 = Math.log(1 - st.a), lw = Math.log(st.w);
+    var t = [lw + (1 - s) * A0 + s * A1, lw + (1 - s) * A1 + s * A0];
+    if (st.w < 1) t.push(Math.log(1 - st.w));
+    return lse(t);
+  }
+  function mpst(S) {
+    var LF = Math.log(st.a / (1 - st.a)), LG = Math.log(st.q / (1 - st.q));
+    var fb = S.IF > S.IG && LF > LG, gb = S.IG > S.IF && LG > LF, t, dF, dG;
+    for (var j = 1; j < 200 && (fb || gb); j++) {
+      t = j / 200; dF = psiF(t) / (t - 1); dG = psiG(t) / (t - 1);
+      if (!(dF > dG)) fb = false; if (!(dG > dF)) gb = false;
+    }
+    for (t = 1.04; t <= 80 && (fb || gb); t *= 1.06) {
+      dF = psiF(t) / (t - 1); dG = psiG(t) / (t - 1);
+      if (!(dF > dG)) fb = false; if (!(dG > dF)) gb = false;
+    }
+    return fb ? "F" : (gb ? "G" : null);
+  }
+  // SPRT on net informative labels: k needed, accuracy acc, informative labels arrive at rate `rate` per request
+  function sprtPoint(k, acc, rate) {
+    var L = Math.log(acc / (1 - acc)), t = Math.exp(-k * L);
+    return [k * ((1 - t) / (1 + t)) / (2 * acc - 1) / rate, t / (1 + t)];
+  }
+  function sprtPts(acc, rate, maxET) {
+    var pts = [[0, 0.5]];
+    for (var k = 1; k < 20000; k++) { var p = sprtPoint(k, acc, rate); pts.push(p); if (p[0] > maxET) break; }
+    return pts;
+  }
+  // Wald's formulas for a threshold b on the evidence (log likelihood ratio): error 1/(1 + e^b) after
+  // b tanh(b/2) / KL labels on average. At b = kL they equal sprtPoint(k) exactly (no overshoot: the evidence
+  // moves in steps of L), so the curve runs through the dots; between dots they treat the threshold as continuous.
+  function waldErr(b) { var e = Math.exp(-b); return e / (1 + e); }
+  function waldB(n, KL) {                      // the threshold with n labels on average
+    var y = KL * n, lo = y, hi = y + 0.75;     // b tanh(b/2) lies between b - 0.75 and b
+    for (var i = 0; i < 64; i++) { var m = 0.5 * (lo + hi); if (m * Math.tanh(m / 2) < y) lo = m; else hi = m; }
+    return 0.5 * (lo + hi);
+  }
+  function waldAt(n, acc, rate) { var b = waldB(n, rate * klb(acc)); return { b: b, err: waldErr(b) }; }
+  function waldCurve(acc, rate, maxET) {       // 5 points per label; integer n are grid points
+    var KL = rate * klb(acc), pts = [];
+    for (var j = 0; j <= 5 * maxET; j++) pts.push([j / 5, waldErr(waldB(j / 5, KL))]);
+    return pts;
+  }
+
+  // ---------- svg helpers ----------
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(parent, x, y, s, cls, anchor, base) {
+    var t = el("text", { x: x, y: y, "text-anchor": anchor || "start", "dominant-baseline": base || "auto" }, parent);
+    if (cls) t.setAttribute("class", cls);
+    t.textContent = s;
+    return t;
+  }
+  function clear(svg) { while (svg.firstChild) svg.removeChild(svg.firstChild); }
+  function lin(d0, d1, r0, r1) { return function (v) { return r0 + (v - d0) * (r1 - r0) / (d1 - d0); }; }
+  function pathD(pts, X, Y) {
+    var d = "";
+    for (var k = 0; k < pts.length; k++) d += (k ? "L" : "M") + X(pts[k][0]).toFixed(2) + "," + Y(pts[k][1]).toFixed(2);
+    return d;
+  }
+  function fmtErr(p) {
+    if (p >= 0.001) return (100 * p).toPrecision(2) + "%";
+    var e = Math.floor(Math.log10(p)), m = p / Math.pow(10, e);
+    if (m >= 9.95) { m = 1; e += 1; }          // 9.96e-6 reads 1.0e-5, not 10.0e-6
+    return m.toFixed(1) + "e" + e;
+  }
+  function fmtInfo(x) {
+    if (x >= 0.095) return x.toFixed(2);
+    if (x >= 0.001) return x.toPrecision(2);
+    return x.toExponential(1);
+  }
+  function fmtAcc(a) {
+    var d = Math.max(1, Math.min(5, Math.ceil(-Math.log10(1 - a)) - 1));
+    return (100 * a).toFixed(d) + "%";
+  }
+
+  // ---------- panel: region map ----------
+  var map = document.getElementById("map");
+  var MX = lin(0.35, 5, 56, 446);              // x: -log10(1 - accuracy)
+  var MY = lin(-2, 0, 262, 12);                // y: log10(share)
+  function drawMap() {
+    clear(map);
+    var S = stats(), e, a, k;
+    var es = [], wK = [], wC = [];
+    for (k = 0; k <= 240; k++) {
+      e = 0.35 + (5 - 0.35) * k / 240; a = 1 - Math.pow(10, -e);
+      var kl = klb(a), b = bh(a);
+      var x = kl > 0 ? S.IG / kl : Infinity, y = b < 1 ? (1 - bh(st.q)) / (1 - b) : Infinity;
+      es.push(e); wK.push(Math.min(1, Math.max(0.01, isFinite(x) ? x : 1))); wC.push(Math.min(1, Math.max(0.01, isFinite(y) ? y : 1)));
+    }
+    function poly(lo, hi, cls) {
+      var d = "";
+      for (k = 0; k < es.length; k++) d += (k ? "L" : "M") + MX(es[k]).toFixed(1) + "," + MY(Math.log10(hi[k])).toFixed(1);
+      for (k = es.length - 1; k >= 0; k--) d += "L" + MX(es[k]).toFixed(1) + "," + MY(Math.log10(lo[k])).toFixed(1);
+      el("path", { d: d + "Z", "class": cls }, map);
+    }
+    var lo = [], hi = [], one = [], floor = [];
+    for (k = 0; k < es.length; k++) { lo.push(Math.min(wK[k], wC[k])); hi.push(Math.max(wK[k], wC[k])); one.push(1); floor.push(0.01); }
+    poly(hi, one, "regF"); poly(lo, hi, "regFlip"); poly(floor, lo, "regG");
+    // grid + axes
+    [0.01, 0.03, 0.1, 0.3, 1].forEach(function (w) {
+      var y = MY(Math.log10(w));
+      el("line", { x1: 56, x2: 446, y1: y, y2: y, "class": "gridl", opacity: 0.6 }, map);
+      txt(map, 50, y + 4, String(w), null, "end");
+    });
+    [[0.75, "75"], [0.9, "90"], [0.99, "99"], [0.999, "99.9"], [0.9999, "99.99"], [0.99999, "99.999"]].forEach(function (p) {
+      var x = MX(-Math.log10(1 - p[0]));
+      el("line", { x1: x, x2: x, y1: 262, y2: 266, "class": "axis" }, map);
+      txt(map, x, 279, p[1], null, "middle");
+    });
+    el("path", { d: "M56,12L56,262L446,262", "class": "axis" }, map);
+    txt(map, 251, 296, "expert accuracy (%)", null, "middle");
+    var yl = txt(map, 14, 137, "expert share of labels", null, "middle");
+    yl.setAttribute("transform", "rotate(-90 14 137)");
+    // boundaries
+    function line(arr, cls) {
+      var d = "";
+      for (k = 0; k < es.length; k++) d += (k ? "L" : "M") + MX(es[k]).toFixed(1) + "," + MY(Math.log10(arr[k])).toFixed(1);
+      el("path", { d: d, "class": cls }, map);
+    }
+    line(wC, "bnd"); line(wK, "bnd dash");
+    // crowd accuracy reference
+    var xq = MX(-Math.log10(1 - st.q));
+    el("line", { x1: xq, x2: xq, y1: 12, y2: 262, "class": "ref" }, map);
+    txt(map, xq + 4, 24, "crowd", "lab labG");
+    // region labels
+    txt(map, 440, 34, "expert wins both", "lab labInk", "end");
+    txt(map, 62, 254, "crowd wins both", "lab labInk");
+    var kk = Math.round(0.82 * (es.length - 1)), gm = Math.sqrt(lo[kk] * hi[kk]);
+    if (hi[kk] / lo[kk] > 1.5) txt(map, MX(es[kk]), MY(Math.log10(gm)) + 4, "flip", "lab labFlip", "middle");
+    // the star
+    var sx = MX(-Math.log10(1 - st.a)), sy = MY(Math.log10(st.w));
+    el("path", { d: starPath(sx, sy, 9, 4), "class": "star" }, map);
+  }
+  function starPath(cx, cy, R, r) {
+    var d = "";
+    for (var k = 0; k < 10; k++) {
+      var ang = -Math.PI / 2 + k * Math.PI / 5, rad = k % 2 ? r : R;
+      d += (k ? "L" : "M") + (cx + rad * Math.cos(ang)).toFixed(2) + "," + (cy + rad * Math.sin(ang)).toFixed(2);
+    }
+    return d + "Z";
+  }
+  var dragging = false;
+  function mapPointer(ev) {
+    var r = map.getBoundingClientRect();
+    var x = (ev.clientX - r.left) * 460 / r.width, y = (ev.clientY - r.top) * 300 / r.height;
+    var e = 0.35 + (x - 56) * (5 - 0.35) / 390, lw = -2 + (262 - y) * 2 / 250;
+    e = Math.min(5, Math.max(0.35, e)); lw = Math.min(0, Math.max(-2, lw));
+    document.getElementById("ea").value = e.toFixed(2);
+    document.getElementById("ew").value = lw.toFixed(2);
+    readControls(); update();
+  }
+  map.addEventListener("pointerdown", function (ev) { dragging = true; map.setPointerCapture(ev.pointerId); mapPointer(ev); });
+  map.addEventListener("pointermove", function (ev) { if (dragging) mapPointer(ev); });
+  map.addEventListener("pointerup", function () { dragging = false; });
+  map.addEventListener("pointercancel", function () { dragging = false; });
+
+  // ---------- panel: psi ----------
+  var psi = document.getElementById("psi");
+  function drawPsi(S) {
+    clear(psi);
+    var s0 = -0.25, s1 = 1.25, N = 220, ptsF = [], ptsG = [], ymin = 0, ymax = 0, k, s;
+    for (k = 0; k <= N; k++) {
+      s = s0 + (s1 - s0) * k / N;
+      var f = psiF(s), g = psiG(s);
+      ptsF.push([s, f]); ptsG.push([s, g]);
+      if (s >= 0 && s <= 1) { ymin = Math.min(ymin, f, g); }
+    }
+    var span = Math.max(0.02, -ymin);
+    ymin = -1.25 * span; ymax = 1.35 * span;
+    var X = lin(s0, s1, 48, 448), Y = lin(ymin, ymax, 262, 14);
+    var defs = el("defs", {}, psi), cp = el("clipPath", { id: "psiclip" }, defs);
+    el("rect", { x: 48, y: 14, width: 400, height: 248 }, cp);
+    var gp = el("g", { "clip-path": "url(#psiclip)" }, psi);
+    function clip(p) { return [p[0], Math.max(ymin - span, Math.min(ymax + span, p[1]))]; }
+    el("line", { x1: 48, x2: 448, y1: Y(0), y2: Y(0), "class": "axis" }, psi);
+    [0, 0.5, 1].forEach(function (v) {
+      el("line", { x1: X(v), x2: X(v), y1: 14, y2: 262, "class": "gridl" }, psi);
+      txt(psi, X(v), 279, v === 0.5 ? "½" : String(v), null, "middle");
+    });
+    txt(psi, 448, 279, "s", null, "end");
+    el("path", { d: pathD(ptsG.map(clip), X, Y), "class": "lineG" }, gp);
+    el("path", { d: pathD(ptsF.map(clip), X, Y), "class": "lineF" }, gp);
+    // tangents at the ends: slopes -/+ KL
+    [[0, -1], [1, 1]].forEach(function (c) {
+      var x0 = c[0], sg = c[1], dx = 0.16;
+      [[S.IF, "lineF"], [S.IG, "lineG"]].forEach(function (p) {
+        var xa = x0 - dx, xb = x0 + dx;
+        var ya = sg * p[0] * (xa - x0), yb = sg * p[0] * (xb - x0);
+        el("line", { x1: X(xa), y1: Y(ya), x2: X(xb), y2: Y(yb), "class": p[1], "stroke-width": 1.2, "stroke-dasharray": "none", opacity: 0.85 }, gp);
+      });
+      el("circle", { cx: X(x0), cy: Y(0), r: 5.5, fill: "none", stroke: "var(--ink)", "stroke-width": 1.2 }, psi);
+    });
+    // depth arrows at s = 1/2
+    [[0.485, psiF(0.5), "var(--F)"], [0.515, psiG(0.5), "var(--G)"]].forEach(function (p) {
+      el("line", { x1: X(p[0]), x2: X(p[0]), y1: Y(0), y2: Y(Math.max(ymin, p[1])), stroke: p[2], "stroke-width": 2 }, psi);
+      el("circle", { cx: X(p[0]), cy: Y(Math.max(ymin, p[1])), r: 2.6, fill: p[2] }, psi);
+    });
+    txt(psi, X(0.5), 32, "slopes at the ends: KL   ·   depth at ½: Chernoff", null, "middle");
+    var fA = psiF(0.78), gA = psiG(0.74);
+    txt(psi, X(0.80), Y(fA) - (fA >= gA ? 8 : -18), "expert", "lab labF", "end");
+    txt(psi, X(0.76), Y(gA) + (fA >= gA ? 18 : -8), "crowd", "lab labG", "start");
+  }
+
+  // ---------- panels: errors ----------
+  // Log axis from 1 down to 1e-YD, set for each panel by the smallest error it reaches by 60 labels, with half a
+  // decade to spare, so no curve or marker runs into the bottom of the plot (warm-up pools: fixed 1e-15, stopping 1e-20).
+  var DEPTHS = [[15, 3], [20, 5], [30, 5], [40, 10], [60, 10], [80, 20], [100, 20], [150, 30], [200, 50], [320, 80]];
+  var YD = 15, YSTEP = 3;
+  function setDepth(minVal) {
+    var lv = Math.log10(Math.max(1e-300, minVal)) - 0.5, i;
+    for (i = 0; i < DEPTHS.length - 1; i++) if (-DEPTHS[i][0] <= lv) break;
+    YD = DEPTHS[i][0]; YSTEP = DEPTHS[i][1];
+  }
+  function logY(v) { return lin(-YD, 0, 262, 14)(Math.max(-YD, Math.log10(v))); }
+  function errAxes(svg, xlab) {
+    clear(svg);
+    var X = lin(0, 60, 56, 448);
+    for (var d = 0; d <= YD; d += YSTEP) {
+      var y = lin(-YD, 0, 262, 14)(-d);
+      el("line", { x1: 56, x2: 448, y1: y, y2: y, "class": "gridl" }, svg);
+      txt(svg, 50, y + 4, d === 0 ? "1" : "1e-" + d, null, "end");
+    }
+    [0, 20, 40, 60].forEach(function (v) { txt(svg, X(v), 279, String(v), null, "middle"); });
+    el("path", { d: "M56,14L56,262L448,262", "class": "axis" }, svg);
+    txt(svg, 252, 296, xlab, null, "middle");
+    return X;
+  }
+  function drawErrors() {
+    var fx = document.getElementById("fixed"), sq = document.getElementById("seq");
+    var fG = [], fF = [];
+    for (var n = 0; n <= 60; n++) { fG.push([n, errFixedG(n)]); fF.push([n, errFixedF(n)]); }
+    var cG = waldCurve(st.q, 1, 60), cF = waldCurve(st.a, st.w, 60);
+    setDepth(Math.min(fG[60][1], fF[60][1]));
+    var X = errAxes(fx, "sample size, n");
+    var Yf = function (v) { return logY(v); };
+    el("line", { x1: X(st.n), x2: X(st.n), y1: 14, y2: 262, "class": "ref" }, fx);
+    // an even batch can tie: a fair coin flip then gives exactly the error of one label fewer, e(2k) = e(2k-1),
+    // so the crowd's curve is drawn through n = 0 and odd n; the marker still shows the exact error at n
+    var fGodd = fG.filter(function (p) { return p[0] === 0 || p[0] % 2 === 1; });
+    el("path", { d: pathD(fGodd, X, Yf), "class": "lineG" }, fx);
+    el("path", { d: pathD(fF, X, Yf), "class": "lineF" }, fx);
+    el("circle", { cx: X(st.n), cy: logY(fG[st.n][1]), r: 4, "class": "dotG" }, fx);
+    el("circle", { cx: X(st.n), cy: logY(fF[st.n][1]), r: 4, "class": "dotF" }, fx);
+    txt(fx, 446, logY(fF[60][1]) - 6, "expert", "lab labF", "end");
+    txt(fx, 446, logY(fG[60][1]) + 16, "crowd", "lab labG", "end");
+
+    setDepth(Math.min(cG[300][1], cF[300][1]));
+    var X2 = errAxes(sq, "expected labels, E[T]");
+    el("line", { x1: X2(st.n), x2: X2(st.n), y1: 14, y2: 262, "class": "ref" }, sq);
+    var cp2 = el("clipPath", { id: "seqclip" }, el("defs", {}, sq));
+    el("rect", { x: 56, y: 10, width: 392, height: 254 }, cp2);
+    var gs = el("g", { "clip-path": "url(#seqclip)" }, sq);
+    el("path", { d: pathD(cG, X2, logY), "class": "lineG" }, gs);
+    el("path", { d: pathD(cF, X2, logY), "class": "lineF" }, gs);
+    // dots: stop at a lead of k = 1, 2, ... labels, where the formula is exact
+    sprtPts(st.q, 1, 60).slice(1).forEach(function (p) { if (p[0] <= 60) el("circle", { cx: X2(p[0]), cy: logY(p[1]), r: 2.4, "class": "dotG" }, sq); });
+    sprtPts(st.a, st.w, 60).slice(1).forEach(function (p) { if (p[0] <= 60) el("circle", { cx: X2(p[0]), cy: logY(p[1]), r: 3.2, "class": "dotF" }, sq); });
+    // operating points: the threshold with exactly n labels on average, on the curve and on the line at n
+    var wG = waldAt(st.n, st.q, 1), wF = waldAt(st.n, st.a, st.w);
+    el("circle", { cx: X2(st.n), cy: logY(wG.err), r: 4.5, fill: "none", stroke: "var(--G)", "stroke-width": 1.6 }, sq);
+    el("circle", { cx: X2(st.n), cy: logY(wF.err), r: 4.5, fill: "none", stroke: "var(--F)", "stroke-width": 1.6 }, sq);
+    // names: above the upper curve, below the lower one, near the right end and inside the plot
+    function name(c, s, cls, below) {
+      var xs = below ? [58, 50, 42, 34, 26] : [46, 38, 30, 22], i, y;
+      for (i = 0; i < xs.length; i++) { y = logY(c[5 * xs[i]][1]); if (below ? y + 16 <= 257 : y - 7 >= 26) break; }
+      if (i === xs.length) { i = 0; y = logY(c[5 * xs[0]][1]); below = !below; }
+      txt(sq, X2(xs[i]), below ? y + 16 : y - 7, s, "lab " + cls, below ? "end" : "start");
+    }
+    var fLow = cF[300][1] <= cG[300][1];
+    name(cG, "crowd", "labG", !fLow);
+    name(cF, "expert", "labF", fLow);
+    return { fixG: fG[st.n][1], fixF: fF[st.n][1], seqG: wG.err, seqF: wF.err };
+  }
+
+  // ---------- readouts ----------
+  function chip(id, who) {
+    var c = document.getElementById(id);
+    c.className = "chip " + (who || "N");
+    c.textContent = who === "F" ? "expert" : (who === "G" ? "crowd" : "no ranking");
+  }
+  function update() {
+    var S = stats();
+    document.getElementById("qv").textContent = (100 * st.q).toFixed(1) + "%";
+    document.getElementById("eav").textContent = fmtAcc(st.a);
+    document.getElementById("ewv").textContent = (100 * st.w).toFixed(st.w < 0.1 ? 1 : 0) + "%";
+    document.getElementById("nnv").textContent = st.n;
+    var ms = S.CF > S.CG ? "F" : (S.CG > S.CF ? "G" : null);
+    var kl = S.IF > S.IG ? "F" : (S.IG > S.IF ? "G" : null);
+    chip("vMS", ms); chip("vKL", kl); chip("vMPST", mpst(S));
+    document.getElementById("flip").textContent = (ms && kl && ms !== kl) ? "The ranking flips." : "";
+    document.getElementById("kG").textContent = fmtInfo(S.IG);
+    document.getElementById("kF").textContent = fmtInfo(S.IF);
+    document.getElementById("cG").textContent = fmtInfo(S.CG);
+    document.getElementById("cF").textContent = fmtInfo(S.CF);
+    drawMap(); drawPsi(S);
+    var r = drawErrors();
+    document.getElementById("rfixlab").textContent = "fixed sample size";
+    document.getElementById("rfG").textContent = fmtErr(r.fixG);
+    document.getElementById("rfF").textContent = fmtErr(r.fixF);
+    document.getElementById("rseqlab").textContent = "sequential sampling";
+    document.getElementById("rsG").textContent = fmtErr(r.seqG);
+    document.getElementById("rsF").textContent = fmtErr(r.seqF);
+    drawEvidence();
+  }
+  function readControls() {
+    st.q = parseFloat(document.getElementById("q").value);
+    st.a = 1 - Math.pow(10, -parseFloat(document.getElementById("ea").value));
+    st.w = Math.pow(10, parseFloat(document.getElementById("ew").value));
+    st.n = parseInt(document.getElementById("nn").value, 10);
+  }
+  ["q", "ea", "ew", "nn"].forEach(function (id) {
+    document.getElementById(id).addEventListener("input", function () { readControls(); update(); });
+  });
+  function setPools(q, a, w, n) {
+    document.getElementById("q").value = q;
+    document.getElementById("ea").value = (-Math.log10(1 - a)).toFixed(2);
+    document.getElementById("ew").value = Math.log10(w).toFixed(2);
+    document.getElementById("nn").value = n;
+    readControls(); update();
+  }
+  document.getElementById("reset").addEventListener("click", function () { setPools(0.75, 0.999, 0.1, 20); });
+  document.getElementById("rich").addEventListener("click", function () { setPools(0.75, 0.999, 0.3, 20); });
+
+  // ---------- evidence at the decision ----------
+  // Stopping: the threshold b with exactly n labels on average (Wald's formulas, as in the plot); the evidence at
+  // the decision is +b or -b. At n = 20 this gives the slides' numbers: expert 1.0e-6, crowd 1.7e-5.
+  function stopAtoms(acc, rate, n) {
+    var W = waldAt(n, acc, rate);
+    return [[W.b, 1 - W.err], [-W.b, W.err]];
+  }
+  function deadlineAtomsG(n) {
+    var L = Math.log(st.q / (1 - st.q)), b = binom(n, st.q), out = [];
+    for (var K = 0; K <= n; K++) out.push([(2 * K - n) * L, b[K]]);
+    return out;
+  }
+  function deadlineAtomsF(n) {
+    var L = Math.log(st.a / (1 - st.a)), be = binom(n, st.w), pm = {};
+    for (var e = 0; e <= n; e++) {
+      if (be[e] < 1e-14) continue;
+      var bw = binom(e, 1 - st.a);
+      for (var wr = 0; wr <= e; wr++) { var m = e - 2 * wr; pm[m] = (pm[m] || 0) + be[e] * bw[wr]; }
+    }
+    return Object.keys(pm).map(function (m) { return [Number(m) * L, pm[m]]; });
+  }
+  var pd = document.getElementById("pd"), ps = document.getElementById("ps");
+  function evidencePanel(svg, title, AF, AG, errF, errG, xr) {
+    clear(svg);
+    var X0 = 48, X1 = 548, YM = 132, H = 96;
+    var X = lin(xr[0], xr[1], X0, X1);
+    var pmax = 0;
+    AF.concat(AG).forEach(function (a) { if (a[0] >= xr[0] && a[0] <= xr[1]) pmax = Math.max(pmax, a[1]); });
+    var step = pmax > 0.6 ? 0.5 : (pmax > 0.3 ? 0.2 : 0.1), top = Math.ceil(pmax / step - 1e-9) * step;
+    var Yh = function (p) { return H * p / top; };
+    // wrong side
+    el("rect", { x: X0, y: YM - H - 4, width: Math.max(0, X(0) - X0), height: 2 * H + 8, "class": "wrong" }, svg);
+    // probability grid (mirrored)
+    for (var g = step; g <= top + 1e-9; g += step) {
+      [YM - Yh(g), YM + Yh(g)].forEach(function (y) { el("line", { x1: X0, x2: X1, y1: y, y2: y, "class": "gridl" }, svg); });
+      txt(svg, X0 - 6, YM - Yh(g) + 4, g.toFixed(1), null, "end");
+      txt(svg, X0 - 6, YM + Yh(g) + 4, g.toFixed(1), null, "end");
+    }
+    el("line", { x1: X0, x2: X1, y1: YM, y2: YM, "class": "axis" }, svg);
+    el("line", { x1: X(0), x2: X(0), y1: YM - H - 4, y2: YM + H + 4, "class": "ref" }, svg);
+    // bars
+    function bars(A, up, cls) {
+      var vals = A.map(function (a) { return a[0]; }).sort(function (u, v) { return u - v; }), gap = Infinity;
+      for (var k = 1; k < vals.length; k++) if (vals[k] - vals[k - 1] > 1e-9) gap = Math.min(gap, vals[k] - vals[k - 1]);
+      var w = isFinite(gap) ? Math.max(3, Math.min(14, 0.7 * (X(gap) - X(0)))) : 10;
+      A.forEach(function (a) {
+        if (a[0] < xr[0] - 1e-9 || a[0] > xr[1] + 1e-9 || a[1] < 1e-7) return;
+        var h = Math.max(a[1] > 1e-4 ? 1 : 0.5, Yh(a[1])), x = X(a[0]) - w / 2;
+        if (Math.abs(a[0]) < 1e-9) {             // no evidence: a coin flip, half of it wrong
+          el("rect", { x: x, y: up ? YM - h : YM, width: w, height: h / 2, "class": up ? cls : "barBad" }, svg);
+          el("rect", { x: x, y: up ? YM - h / 2 : YM + h / 2, width: w, height: h / 2, "class": up ? "barBad" : cls }, svg);
+        } else {
+          el("rect", { x: x, y: up ? YM - h : YM, width: w, height: h, "class": a[0] < 0 ? "barBad" : cls }, svg);
+        }
+      });
+    }
+    bars(AF, true, "barF"); bars(AG, false, "barG");
+    // labels
+    txt(svg, X0, 14, title, "lab labInk");
+    txt(svg, X0 + 6, YM - H + 10, "expert", "lab labF");
+    txt(svg, X0 + 6, YM - H + 28, "error " + fmtErr(errF), "lab", null).setAttribute("style", "fill: var(--bad)");
+    txt(svg, X0 + 6, YM + H - 14, "crowd", "lab labG");
+    txt(svg, X0 + 6, YM + H + 4, "error " + fmtErr(errG), "lab", null).setAttribute("style", "fill: var(--bad)");
+    var tk = xr[1] - xr[0] > 80 ? 20 : 10;
+    for (var v = Math.ceil(xr[0] / tk) * tk; v <= xr[1]; v += tk) {
+      el("line", { x1: X(v), x2: X(v), y1: YM + H + 6, y2: YM + H + 10, "class": "axis" }, svg);
+      txt(svg, X(v), YM + H + 22, String(v), null, "middle");
+    }
+    txt(svg, (X0 + X1) / 2, YM + H + 38, "evidence for the truth when deciding", null, "middle");
+  }
+  function drawEvidence() {
+    var n = st.n;
+    var dF = deadlineAtomsF(n), dG = deadlineAtomsG(n);
+    var sF = stopAtoms(st.a, st.w, n), sG = stopAtoms(st.q, 1, n);
+    var hiv = 0, lov = 0;
+    dF.concat(dG, sF, sG).forEach(function (a) { if (a[1] > 0.002) { hiv = Math.max(hiv, a[0]); lov = Math.min(lov, a[0]); } });
+    hiv = Math.max(5, hiv) * 1.06;
+    lov = Math.min(lov * 1.06, -0.3 * hiv);
+    var xr = [Math.floor(lov), Math.ceil(hiv)];
+    evidencePanel(pd, "Fixed sample size: decide after " + n + " labels", dF, dG, errFixedF(n), errFixedG(n), xr);
+    evidencePanel(ps, "Sequential sampling: " + n + " labels on average", sF, sG, sF[1][1], sG[1][1], xr);
+  }
+
+  readControls(); update();
+})();
+</script>
+
+</body></html>
